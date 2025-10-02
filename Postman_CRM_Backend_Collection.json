@@ -1,0 +1,117 @@
+{
+  "info": {
+    "name": "CRM Backend - Collection",
+    "_postman_id": "crm-backend-collection",
+    "description": "Collection for CRM backend endpoints (admin/vendor/employee flows)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"admin123\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const data = pm.response.json();",
+              "if (data && data.token) { pm.environment.set('token', data.token); }",
+              "if (data && data.user && data.user.id) { pm.environment.set('meId', data.user.id); }"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Dashboard",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "url": { "raw": "{{baseUrl}}/api/admin/dashboard", "host": ["{{baseUrl}}"], "path": ["api","admin","dashboard"] }
+      }
+    },
+    {
+      "name": "Admin - Create Vendor",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Vendor A\",\n  \"email\": \"vendorA@example.com\",\n  \"password\": \"vendorpass\"\n}" },
+        "url": { "raw": "{{baseUrl}}/api/admin/vendors", "host": ["{{baseUrl}}"], "path": ["api","admin","vendors"] }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["const r = pm.response.json(); if (r && r._id) pm.environment.set('vendorId', r._id);"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Admin - Create Employee",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Emp 1\",\n  \"email\": \"emp1@example.com\",\n  \"password\": \"emp123\",\n  \"vendor\": \"{{vendorId}}\"\n}" },
+        "url": { "raw": "{{baseUrl}}/api/admin/employees", "host": ["{{baseUrl}}"], "path": ["api","admin","employees"] }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["const r = pm.response.json(); if (r && r._id) pm.environment.set('employeeId', r._id);"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Vendor - Create Employee",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Emp V1\",\n  \"email\": \"empv1@example.com\",\n  \"password\": \"empv123\"\n}" },
+        "url": { "raw": "{{baseUrl}}/api/vendors/{{vendorId}}/employees", "host": ["{{baseUrl}}"], "path": ["api","vendors","{{vendorId}}","employees"] }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["const r = pm.response.json(); if (r && r._id) pm.environment.set('employeeId', r._id);"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Create Task (Admin)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "body": { "mode": "raw", "raw": "{\n  \"title\": \"Call Back Lead\",\n  \"description\": \"Call lead to confirm interest\",\n  \"dueDate\": \"2025-10-10\",\n  \"priority\": \"high\",\n  \"assignedTo\": \"{{employeeId}}\",\n  \"assignedRole\": \"employee\"\n}" },
+        "url": { "raw": "{{baseUrl}}/api/tasks", "host": ["{{baseUrl}}"], "path": ["api","tasks"] }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["const r=pm.response.json(); if (r && r._id) pm.environment.set('taskId', r._id);"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Create Task (Vendor)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "body": { "mode": "raw", "raw": "{\n  \"title\": \"Visit client\",\n  \"description\": \"Onsite meeting with client X\",\n  \"dueDate\": \"2025-10-07\",\n  \"priority\": \"medium\",\n  \"assignedTo\": \"{{employeeId}}\",\n  \"assignedRole\": \"employee\"\n}" },
+        "url": { "raw": "{{baseUrl}}/api/vendors/{{vendorId}}/tasks", "host": ["{{baseUrl}}"], "path": ["api","vendors","{{vendorId}}","tasks"] }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["const r=pm.response.json(); if (r && r._id) pm.environment.set('taskId', r._id);"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Admin - Create Notification",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "body": { "mode": "raw", "raw": "{\n  \"title\": \"Weekly Update\",\n  \"message\": \"Please submit your weekly status\",\n  \"audience\": \"employees\"\n}" },
+        "url": { "raw": "{{baseUrl}}/api/admin/notifications", "host": ["{{baseUrl}}"], "path": ["api","admin","notifications"] }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["const r=pm.response.json(); if (r && r._id) pm.environment.set('notifId', r._id);"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "Admin - Send Notification",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "url": { "raw": "{{baseUrl}}/api/admin/notifications/{{notifId}}/send", "host": ["{{baseUrl}}"], "path": ["api","admin","notifications","{{notifId}}","send"] }
+      }
+    }
+  ]
+}

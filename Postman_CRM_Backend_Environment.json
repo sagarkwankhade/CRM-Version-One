@@ -1,0 +1,13 @@
+{
+  "id": "crm-backend-env",
+  "name": "CRM Backend Env",
+  "values": [
+    { "key": "baseUrl", "value": "http://localhost:4000", "enabled": true },
+    { "key": "token", "value": "", "enabled": true },
+    { "key": "vendorId", "value": "", "enabled": true },
+    { "key": "employeeId", "value": "", "enabled": true },
+    { "key": "taskId", "value": "", "enabled": true },
+    { "key": "notifId", "value": "", "enabled": true }
+  ],
+  "timestamp": 0
+}
