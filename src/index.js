@@ -35,15 +35,40 @@ const PORT = process.env.PORT || 4000;
 
 // Start server after attempting DB connection so nodemon doesn't crash instantly
 (async () => {
-	try {
-		const connected = await connectDB({ maxAttempts: 3, delayMs: 4000 });
-		if (!connected) {
-			console.warn('Server starting without a database connection. Some endpoints may fail until the DB is available.');
-		}
+  try {
+    const connected = await connectDB({ maxAttempts: 3, delayMs: 4000 });
+    if (!connected) {
+      console.warn('Server starting without a database connection. Some endpoints may fail until the DB is available.');
+    }
 
-		app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-	} catch (err) {
-		console.error('Fatal error while starting the server:', err && err.message ? err.message : err);
-		process.exit(1);
-	}
+    // Try to start the server, if port is in use, try the next port
+    const startServer = async (port) => {
+      try {
+        await new Promise((resolve, reject) => {
+          const server = app.listen(port, () => {
+            console.log(`Server running on port ${port}`);
+            resolve();
+          }).on('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+              console.log(`Port ${port} is in use, trying ${port + 1}...`);
+              server.close();
+              startServer(port + 1);
+            } else {
+              reject(err);
+            }
+          });
+        });
+      } catch (err) {
+        if (err.code === 'EADDRINUSE') {
+          return startServer(port + 1);
+        }
+        throw err;
+      }
+    };
+
+    await startServer(PORT);
+  } catch (err) {
+    console.error('Fatal error while starting the server:', err && err.message ? err.message : err);
+    process.exit(1);
+  }
 })();
