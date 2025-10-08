@@ -149,13 +149,68 @@ router.post('/notifications/:id/send', asyncHandler(async (req, res) => {
 // Admin profile
 router.get('/me', asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).select('-password');
-  res.json(user);
+  // Return only the specified fields
+  const { 
+    name, 
+    username, 
+    email, 
+    profile: { 
+      phone, 
+      whatsappNumber, 
+      businessName, 
+      address,
+      linkedinUrl,
+      instagramUrl 
+    } = {} 
+  } = user;
+  
+  res.json({
+    name,
+    username,
+    email,
+    profile: {
+      phone,
+      whatsappNumber,
+      businessName,
+      address,
+      linkedinUrl,
+      instagramUrl
+    }
+  });
 }));
-router.put('/me', asyncHandler(async (req, res) => {
-  const data = req.body;
-  if (data.password) data.password = await bcrypt.hash(data.password, 10);
-  await User.findByIdAndUpdate(req.user._id, data);
-  res.json({ ok: true });
+
+router.put('/me', [
+  // Validation for required fields
+  body('name').isLength({ min: 2 }).withMessage('Full name must be at least 2 characters'),
+  body('username').optional().isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
+  body('email').isEmail().withMessage('Must be a valid email'),
+  body('profile.phone').optional().matches(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/).withMessage('Invalid phone number'),
+  body('profile.whatsappNumber').optional().matches(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/).withMessage('Invalid WhatsApp number'),
+  body('profile.businessName').optional().isLength({ min: 2 }).withMessage('Business name must be at least 2 characters'),
+  body('profile.address').optional().isLength({ min: 5 }).withMessage('Address must be at least 5 characters'),
+  body('profile.linkedinUrl').optional().isURL().withMessage('Must be a valid LinkedIn URL'),
+  body('profile.instagramUrl').optional().isURL().withMessage('Must be a valid Instagram URL'),
+  handleValidation
+], asyncHandler(async (req, res) => {
+  const { name, username, email, profile } = req.body;
+  
+  // Only allow specified fields
+  const updateData = {
+    name,
+    username,
+    email,
+    profile: {
+      phone: profile?.phone,
+      whatsappNumber: profile?.whatsappNumber,
+      businessName: profile?.businessName,
+      address: profile?.address,
+      linkedinUrl: profile?.linkedinUrl,
+      instagramUrl: profile?.instagramUrl
+    }
+  };
+
+  await User.findByIdAndUpdate(req.user._id, updateData);
+  res.json({ ok: true, message: 'Profile updated successfully' });
 }));
 
 module.exports = router;
