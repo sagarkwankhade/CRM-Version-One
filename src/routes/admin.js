@@ -149,11 +149,12 @@ router.post('/notifications/:id/send', asyncHandler(async (req, res) => {
 // Admin profile
 router.get('/me', asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).select('-password');
-  // Return only the specified fields
+  // Return only the specified fields for admin personal information
   const { 
     name, 
-    username, 
-    email, 
+    username,
+    email,
+    role,
     profile: { 
       phone, 
       whatsappNumber, 
@@ -168,6 +169,7 @@ router.get('/me', asyncHandler(async (req, res) => {
     name,
     username,
     email,
+    role,
     profile: {
       phone,
       whatsappNumber,
@@ -182,14 +184,14 @@ router.get('/me', asyncHandler(async (req, res) => {
 router.put('/me', [
   // Validation for required fields
   body('name').isLength({ min: 2 }).withMessage('Full name must be at least 2 characters'),
-  body('username').optional().isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
+  body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
   body('email').isEmail().withMessage('Must be a valid email'),
-  body('profile.phone').optional().matches(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/).withMessage('Invalid phone number'),
-  body('profile.whatsappNumber').optional().matches(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/).withMessage('Invalid WhatsApp number'),
-  body('profile.businessName').optional().isLength({ min: 2 }).withMessage('Business name must be at least 2 characters'),
-  body('profile.address').optional().isLength({ min: 5 }).withMessage('Address must be at least 5 characters'),
-  body('profile.linkedinUrl').optional().isURL().withMessage('Must be a valid LinkedIn URL'),
-  body('profile.instagramUrl').optional().isURL().withMessage('Must be a valid Instagram URL'),
+  body('profile.phone').notEmpty().matches(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/).withMessage('Invalid phone number'),
+  body('profile.whatsappNumber').notEmpty().matches(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/).withMessage('Invalid WhatsApp number'),
+  body('profile.businessName').notEmpty().isLength({ min: 2 }).withMessage('Business name must be at least 2 characters'),
+  body('profile.address').notEmpty().isLength({ min: 5 }).withMessage('Address must be at least 5 characters'),
+  body('profile.linkedinUrl').notEmpty().isURL().withMessage('Must be a valid LinkedIn URL'),
+  body('profile.instagramUrl').notEmpty().isURL().withMessage('Must be a valid Instagram URL'),
   handleValidation
 ], asyncHandler(async (req, res) => {
   const { name, username, email, profile } = req.body;
@@ -200,12 +202,12 @@ router.put('/me', [
     username,
     email,
     profile: {
-      phone: profile?.phone,
-      whatsappNumber: profile?.whatsappNumber,
-      businessName: profile?.businessName,
-      address: profile?.address,
-      linkedinUrl: profile?.linkedinUrl,
-      instagramUrl: profile?.instagramUrl
+      phone: profile.phone,
+      whatsappNumber: profile.whatsappNumber,
+      businessName: profile.businessName,
+      address: profile.address,
+      linkedinUrl: profile.linkedinUrl,
+      instagramUrl: profile.instagramUrl
     }
   };
 
