@@ -6,9 +6,9 @@ const Task = require('../models/Task');
 const Lead = require('../models/Lead');
 const Notification = require('../models/Notification');
 const { auth, permit } = require('../middleware/auth');
+
 const { body, param } = require('express-validator');
 const { handleValidation } = require('../middleware/validation');
-
 const router = express.Router();
 
 // Admin-only routes
@@ -24,154 +24,204 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
   res.json({ vendors, employees, leads, notifications });
 }));
 
-/* ==============================
-        VENDORS MANAGEMENT
-================================*/
+// Admin can manage vendors
 router.get('/vendors', asyncHandler(async (req, res) => {
-  const list = await User.find({ role: 'vendor' })
-    .select('name role username mobileNumber whatsappNumber email businessName businessCity');
+  const list = await User.find({ role: 'vendor' });
   res.json(list);
 }));
 
+// Get vendor by ID
 router.get('/vendors/:id', [
   param('id').isMongoId().withMessage('Invalid vendor ID'),
   handleValidation
 ], asyncHandler(async (req, res) => {
-  const vendor = await User.findOne({ _id: req.params.id, role: 'vendor' })
-    .select('name role username mobileNumber whatsappNumber email businessName businessCity');
+  const vendor = await User.findOne({ _id: req.params.id, role: 'vendor' }).select('-password');
   if (!vendor) {
     return res.status(404).json({ message: 'Vendor not found' });
   }
   res.json(vendor);
 }));
 
-router.post('/vendors', [
-  body('name').isLength({ min: 1 }),
-  body('role').isIn(['vendor']),
-  body('username').isLength({ min: 3 }),
-  body('mobileNumber').matches(/^[0-9]{10}$/).withMessage('Invalid mobile number'),
-  body('whatsappNumber').matches(/^[0-9]{10}$/).withMessage('Invalid WhatsApp number'),
-  body('email').isEmail(),
-  body('businessName').isLength({ min: 2 }),
-  body('businessCity').isLength({ min: 2 }),
-  handleValidation
-], asyncHandler(async (req, res) => {
-  const { name, role, username, mobileNumber, whatsappNumber, email, businessName, businessCity, password } = req.body;
+router.post('/vendors', [ body('name').isLength({ min: 1 }), body('email').isEmail(), body('password').optional().isLength({ min: 6 }), handleValidation ], asyncHandler(async (req, res) => {
+  const { name, email, password } = req.body;
   const hash = await bcrypt.hash(password || 'vendor123', 10);
-
-  const user = await User.create({
-    name,
-    role,
-    username,
-    mobileNumber,
-    whatsappNumber,
-    email,
-    businessName,
-    businessCity,
-    password: hash
-  });
-
+  const user = await User.create({ name, email, password: hash, role: 'vendor', createdBy: req.user._id });
   res.status(201).json(user);
 }));
 
-router.put('/vendors/:id', [
-  param('id').isMongoId(),
-  handleValidation
-], asyncHandler(async (req, res) => {
-  const updateData = (({ name, role, username, mobileNumber, whatsappNumber, email, businessName, businessCity }) =>
-    ({ name, role, username, mobileNumber, whatsappNumber, email, businessName, businessCity }))(req.body);
-
-  await User.findByIdAndUpdate(req.params.id, updateData);
-  res.json({ ok: true, message: 'Vendor updated successfully' });
+router.put('/vendors/:id', asyncHandler(async (req, res) => {
+  const id = req.params.id;
+  const data = req.body;
+  await User.findByIdAndUpdate(id, data);
+  res.json({ ok: true });
 }));
 
-router.delete('/vendors/:id', [
-  param('id').isMongoId(),
-  handleValidation
-], asyncHandler(async (req, res) => {
+router.delete('/vendors/:id', [ param('id').isMongoId(), handleValidation ], asyncHandler(async (req, res) => {
   await User.findByIdAndDelete(req.params.id);
-  res.json({ ok: true, message: 'Vendor deleted successfully' });
+  res.json({ ok: true });
 }));
 
-/* ==============================
-       EMPLOYEES MANAGEMENT
-================================*/
+router.post('/vendors/:id/block', [ param('id').isMongoId(), handleValidation ], asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(req.params.id, { blocked: true });
+  res.json({ ok: true });
+}));
+router.post('/vendors/:id/unblock', [ param('id').isMongoId(), handleValidation ], asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(req.params.id, { blocked: false });
+  res.json({ ok: true });
+}));
+router.post('/vendors/:id/unblock', asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(req.params.id, { blocked: false });
+  res.json({ ok: true });
+}));
+
+// Admin can manage employees
 router.get('/employees', asyncHandler(async (req, res) => {
-  const list = await User.find({ role: 'employee' })
-    .select('name role username mobileNumber whatsappNumber email businessName businessCity');
+  const list = await User.find({ role: 'employee' });
   res.json(list);
 }));
 
-router.post('/employees', [
-  body('name').isLength({ min: 1 }),
-  body('role').isIn(['employee']),
-  body('username').isLength({ min: 3 }),
-  body('mobileNumber').matches(/^[0-9]{10}$/),
-  body('whatsappNumber').matches(/^[0-9]{10}$/),
-  body('email').isEmail(),
-  body('businessName').isLength({ min: 2 }),
-  body('businessCity').isLength({ min: 2 }),
-  handleValidation
-], asyncHandler(async (req, res) => {
-  const { name, role, username, mobileNumber, whatsappNumber, email, businessName, businessCity, password } = req.body;
+router.post('/employees', [ body('name').isLength({ min: 1 }), body('email').isEmail(), body('password').optional().isLength({ min: 6 }), handleValidation ], asyncHandler(async (req, res) => {
+  const { name, email, password, vendor } = req.body;
+  // If admin creating without vendor specified, leave vendor null
   const hash = await bcrypt.hash(password || 'employee123', 10);
-
-  const user = await User.create({
-    name,
-    role,
-    username,
-    mobileNumber,
-    whatsappNumber,
-    email,
-    businessName,
-    businessCity,
-    password: hash
-  });
-
+  const user = await User.create({ name, email, password: hash, role: 'employee', createdBy: req.user._id, vendor: vendor || null });
   res.status(201).json(user);
 }));
 
-router.put('/employees/:id', [
-  param('id').isMongoId(),
-  handleValidation
-], asyncHandler(async (req, res) => {
-  const updateData = (({ name, role, username, mobileNumber, whatsappNumber, email, businessName, businessCity }) =>
-    ({ name, role, username, mobileNumber, whatsappNumber, email, businessName, businessCity }))(req.body);
-
-  await User.findByIdAndUpdate(req.params.id, updateData);
-  res.json({ ok: true, message: 'Employee updated successfully' });
+router.put('/employees/:id', asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(req.params.id, req.body);
+  res.json({ ok: true });
 }));
 
-router.delete('/employees/:id', [
-  param('id').isMongoId(),
-  handleValidation
-], asyncHandler(async (req, res) => {
+router.delete('/employees/:id', [ param('id').isMongoId(), handleValidation ], asyncHandler(async (req, res) => {
   await User.findByIdAndDelete(req.params.id);
-  res.json({ ok: true, message: 'Employee deleted successfully' });
+  res.json({ ok: true });
 }));
 
-/* ==============================
-          ADMIN PROFILE
-================================*/
+router.post('/employees/:id/block', [ param('id').isMongoId(), handleValidation ], asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(req.params.id, { blocked: true });
+  res.json({ ok: true });
+}));
+router.post('/employees/:id/unblock', [ param('id').isMongoId(), handleValidation ], asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(req.params.id, { blocked: false });
+  res.json({ ok: true });
+}));
+
+// Tasks overview
+router.get('/tasks', asyncHandler(async (req, res) => {
+  const tasks = await Task.find().populate('assignedTo', 'name email role');
+  res.json(tasks);
+}));
+
+// Leads management
+router.get('/leads', asyncHandler(async (req, res) => {
+  const leads = await Lead.find();
+  res.json(leads);
+}));
+router.put('/leads/:id', [ param('id').isMongoId(), handleValidation ], asyncHandler(async (req, res) => {
+  await Lead.findByIdAndUpdate(req.params.id, req.body);
+  res.json({ ok: true });
+}));
+router.post('/leads/:id/block', [ param('id').isMongoId(), handleValidation ], asyncHandler(async (req, res) => {
+  await Lead.findByIdAndUpdate(req.params.id, { blocked: true });
+  res.json({ ok: true });
+}));
+
+// Notifications
+router.get('/notifications', asyncHandler(async (req, res) => {
+  const list = await Notification.find();
+  res.json(list);
+}));
+router.post('/notifications', [ body('title').isLength({ min: 1 }), body('message').isLength({ min: 1 }), body('audience').isIn(['vendors','employees','custom','all']), handleValidation ], asyncHandler(async (req, res) => {
+  const n = await Notification.create(req.body);
+  res.status(201).json(n);
+}));
+router.put('/notifications/:id', [ param('id').isMongoId(), body('title').optional().isLength({ min: 1 }), handleValidation ], asyncHandler(async (req, res) => {
+  await Notification.findByIdAndUpdate(req.params.id, req.body);
+  res.json({ ok: true });
+}));
+router.delete('/notifications/:id', [ param('id').isMongoId(), handleValidation ], asyncHandler(async (req, res) => {
+  await Notification.findByIdAndDelete(req.params.id);
+  res.json({ ok: true });
+}));
+
+// Bulk send: here we only record the notification and optionally return list of recipients
+router.post('/notifications/:id/send', asyncHandler(async (req, res) => {
+  const n = await Notification.findById(req.params.id);
+  if (!n) return res.status(404).json({ message: 'Not found' });
+  let recipients = [];
+  if (n.audience === 'vendors') recipients = await User.find({ role: 'vendor', blocked: false });
+  else if (n.audience === 'employees') recipients = await User.find({ role: 'employee', blocked: false });
+  else if (n.audience === 'custom') recipients = await User.find({ _id: { $in: n.customList } });
+  else recipients = await User.find({ blocked: false });
+  // In a real system we'd queue/send notifications. Return recipients count for now.
+  res.json({ recipients: recipients.length });
+}));
+
+// Admin profile
 router.get('/me', asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id)
-    .select('name role username mobileNumber whatsappNumber email businessName businessCity');
-  res.json(user);
+  const user = await User.findById(req.user._id).select('-password');
+  // Return only the specified fields for admin personal information
+  const { 
+    name, 
+    username,
+    email,
+    role,
+    profile: { 
+      phone, 
+      whatsappNumber, 
+      businessName, 
+      address,
+      linkedinUrl,
+      instagramUrl 
+    } = {} 
+  } = user;
+  
+  res.json({
+    name,
+    username,
+    email,
+    role,
+    profile: {
+      phone,
+      whatsappNumber,
+      businessName,
+      address,
+      linkedinUrl,
+      instagramUrl
+    }
+  });
 }));
 
 router.put('/me', [
-  body('name').isLength({ min: 2 }),
-  body('role').isIn(['admin']),
-  body('username').isLength({ min: 3 }),
-  body('mobileNumber').matches(/^[0-9]{10}$/),
-  body('whatsappNumber').matches(/^[0-9]{10}$/),
-  body('email').isEmail(),
-  body('businessName').isLength({ min: 2 }),
-  body('businessCity').isLength({ min: 2 }),
+  // Validation for required fields
+  body('name').isLength({ min: 2 }).withMessage('Full name must be at least 2 characters'),
+  body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
+  body('email').isEmail().withMessage('Must be a valid email'),
+  body('profile.phone').notEmpty().matches(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/).withMessage('Invalid phone number'),
+  body('profile.whatsappNumber').notEmpty().matches(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/).withMessage('Invalid WhatsApp number'),
+  body('profile.businessName').notEmpty().isLength({ min: 2 }).withMessage('Business name must be at least 2 characters'),
+  body('profile.address').notEmpty().isLength({ min: 5 }).withMessage('Address must be at least 5 characters'),
+  body('profile.linkedinUrl').notEmpty().isURL().withMessage('Must be a valid LinkedIn URL'),
+  body('profile.instagramUrl').notEmpty().isURL().withMessage('Must be a valid Instagram URL'),
   handleValidation
 ], asyncHandler(async (req, res) => {
-  const updateData = (({ name, role, username, mobileNumber, whatsappNumber, email, businessName, businessCity }) =>
-    ({ name, role, username, mobileNumber, whatsappNumber, email, businessName, businessCity }))(req.body);
+  const { name, username, email, profile } = req.body;
+  
+  // Only allow specified fields
+  const updateData = {
+    name,
+    username,
+    email,
+    profile: {
+      phone: profile.phone,
+      whatsappNumber: profile.whatsappNumber,
+      businessName: profile.businessName,
+      address: profile.address,
+      linkedinUrl: profile.linkedinUrl,
+      instagramUrl: profile.instagramUrl
+    }
+  };
 
   await User.findByIdAndUpdate(req.user._id, updateData);
   res.json({ ok: true, message: 'Profile updated successfully' });
