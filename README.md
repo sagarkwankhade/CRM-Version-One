@@ -1,13 +1,93 @@
 
-CRM Backend (Node + Express + MongoDB)
+# CRM Backend (Node + Express + MongoDB)
 
-Quick start
+A comprehensive CRM backend system with role-based access control (Admin, Vendor, Employee), task management, lead tracking, and notifications.
 
-1. Copy `.env.example` to `.env` and update values.
-2. Install dependencies: npm install
-3. Start MongoDB locally or set `MONGO_URI`.
-4. Seed an admin: npm run seed
-5. Start server: npm run dev
+## Quick Start (Development)
+
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd "Crm Version One"
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   ```bash
+   # Copy the example environment file
+   cp .env.example .env
+   
+   # Edit .env and update the following:
+   # - MONGO_URI: Your MongoDB connection string
+   # - JWT_SECRET: A strong random string for JWT token signing
+   # - PORT: Server port (default: 4000)
+   ```
+
+4. **Start MongoDB**
+   - Local: Make sure MongoDB is running on `localhost:27017`
+   - Cloud: Update `MONGO_URI` in `.env` with your MongoDB Atlas connection string
+
+5. **Create admin user**
+   ```bash
+   npm run seed
+   # or
+   npm run create-admin
+   ```
+
+6. **Start development server**
+   ```bash
+   npm run dev
+   ```
+
+## Production Deployment
+
+### Environment Variables
+
+Make sure to set these environment variables in your production environment:
+
+- `MONGO_URI` - MongoDB connection string (required)
+- `JWT_SECRET` - Strong random string for JWT signing (required, change from default!)
+- `PORT` - Server port (optional, defaults to 4000)
+- `ADMIN_EMAIL` - Admin email (optional, for admin creation scripts)
+- `ADMIN_PASSWORD` - Admin password (optional, for admin creation scripts)
+
+### Deployment Steps
+
+1. **Set up environment variables** on your hosting platform (Heroku, Railway, Render, etc.)
+   - Never commit `.env` file to git
+   - Use your platform's environment variable configuration
+
+2. **Install dependencies**
+   ```bash
+   npm install --production
+   ```
+
+3. **Start the server**
+   ```bash
+   npm start
+   ```
+
+### Available Scripts
+
+- `npm start` - Start production server
+- `npm run dev` - Start development server with nodemon
+- `npm run seed` - Create default admin user (admin@example.com / admin123)
+- `npm run create-admin` - Create/update admin user (uses ADMIN_EMAIL and ADMIN_PASSWORD from .env)
+- `npm run list-users` - List all users in the database
+- `npm run fix-passwords` - Fix users with plain text passwords (re-hash them)
+
+### Security Notes
+
+- ✅ All passwords are hashed using bcrypt
+- ✅ JWT tokens for authentication
+- ✅ Environment variables for sensitive data
+- ✅ CORS enabled (configure allowed origins in production)
+- ⚠️ Change `JWT_SECRET` in production!
+- ⚠️ Never commit `.env` file to version control
 
 APIs (overview)
 

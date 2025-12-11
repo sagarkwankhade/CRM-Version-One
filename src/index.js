@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
-const connectDB = require('./utils/db');
+const { connect } = require('./utils/db');
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -36,11 +36,11 @@ const PORT = process.env.PORT || 4000;
 // Start server after attempting DB connection so nodemon doesn't crash instantly
 (async () => {
   try {
-    const connected = await connectDB({ maxAttempts: 3, delayMs: 4000 });
+    const connected = await connect({ maxAttempts: 3, delayMs: 4000 });
     if (!connected) {
       console.warn('Server starting without a database connection. Some endpoints may fail until the DB is available.');
     }
-
+  
     // Try to start the server, if port is in use, try the next port
     const startServer = async (port) => {
       try {

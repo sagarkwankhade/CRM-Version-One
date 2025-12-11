@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const User = require('../models/User');
 
 // Enable mongoose debug mode
 mongoose.set('debug', true);
@@ -8,9 +9,9 @@ mongoose.set('debug', true);
  * Connect to MongoDB with simple retry logic.
  * Returns true when connected, false otherwise. Does not call process.exit.
  */
-const connectDB = async (options = {}) => {
-  // Prefer MONGO_URI from environment. Default to the requested connection string placeholder.
-  const uri = process.env.MONGO_URI || 'mongodb+srv://sagarwankhade425_db_user:VEwqfP8kKL060xME@crm12.yaa8wom.mongodb.net/?appName=crm12';
+const connect = async (options = {}) => {
+  // Prefer MONGO_URI from environment. Default to local MongoDB if not set.
+  const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/crm_db';
   const maxAttempts = options.maxAttempts || 5;
   const delayMs = options.delayMs || 5000; // 5 seconds
 
@@ -50,8 +51,6 @@ const connectDB = async (options = {}) => {
   }
 };
 
-module.exports = connectDB;
-
 /**
  * Logs the details of a login attempt.
  * @param {string} email - The email used for the login attempt.
@@ -64,24 +63,46 @@ function logLoginAttempt(email, user, passwordMatch) {
   console.log(`Password comparison result: ${passwordMatch}`);
 }
 
-// Example usage
-logLoginAttempt('test@example.com', { id: 1, email: 'test@example.com' }, true);
+// Utility function to ensure a default user exists in the database.
+const ensureDefaultUser = async () => {
+  const email = 'admin@example.com';
+  const password = 'admin123';
 
-// Password hashing example
-(async () => {
-  const newPassword = 'new_password';
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-  console.log('Hashed password:', hashedPassword);
-})();
+  try {
+    // Use case-insensitive email search
+    const existingUser = await User.findOne({ email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
+    
+    if (existingUser) {
+      // Check if password is hashed (bcrypt hashes start with $2a$, $2b$, or $2y$)
+      const isHashed = existingUser.password && (existingUser.password.startsWith('$2a$') || existingUser.password.startsWith('$2b$') || existingUser.password.startsWith('$2y$'));
+      
+      if (!isHashed) {
+        // Re-hash the password if it's stored in plain text
+        console.log('Found user with plain text password, updating to hashed password...');
+        const hash = await bcrypt.hash(password, 10);
+        existingUser.password = hash;
+        await existingUser.save();
+        console.log('Updated user password to hashed format:', email);
+      } else {
+        console.log('Default user already exists with hashed password:', email);
+      }
+      return;
+    }
 
-// Removed invalid MongoDB shell command
-// If you need to insert a user, use Mongoose methods like this:
-// const user = new User({
-//   name: "Test User",
-//   email: "test@example.com",
-//   password: "<hashed_password>",
-//   role: "employee"
-// });
-// await user.save();
-// console.log("User inserted:", user);
+    // Create new user with hashed password
+    const hash = await bcrypt.hash(password, 10);
+    const user = new User({
+      name: 'Admin',
+      email: email.toLowerCase(), // Store email in lowercase
+      password: hash,
+      role: 'admin'
+    });
+    await user.save();
+    console.log('Default user created:', email);
+  } catch (error) {
+    console.error('Error ensuring default user:', error.message);
+  }
+};
+
+module.exports = { connect, ensureDefaultUser };
 

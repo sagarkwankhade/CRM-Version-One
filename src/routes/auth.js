@@ -11,37 +11,56 @@ const { handleValidation } = require('../middleware/validation');
 const router = express.Router();
 
 router.post('/login', [
-  body('email').isEmail(),
-  body('password').isLength({ min: 1 })
+  body('email').isEmail().normalizeEmail(),
+  body('password').isLength({ min: 1 }).trim()
 ], handleValidation, asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  let { email, password } = req.body;
 
-  // Debugging: Log received email
+  // Trim whitespace from email and password
+  email = email ? email.trim().toLowerCase() : '';
+  password = password ? password.trim() : '';
+
+  // Debugging: Log received email (without password for security)
   console.log('Login attempt with email:', email);
+  console.log('Password length:', password ? password.length : 0);
 
   // If DB is not connected, return a quick 503 instead of timing out
   if (mongoose.connection.readyState !== 1) {
-    console.error('Database not connected');
+    console.error('Database not connected. Connection state:', mongoose.connection.readyState);
     return res.status(503).json({ message: 'Database not connected' });
   }
 
-  const user = await User.findOne({ email });
+  // Find user by email (case-insensitive search using regex)
+  // Escape special regex characters in email
+  const escapedEmail = email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const user = await User.findOne({ email: { $regex: new RegExp(`^${escapedEmail}$`, 'i') } });
 
-  // Debugging: Log user lookup result
-  console.log('User lookup result:', user);
+  // Debugging: Log user lookup result (without sensitive data)
+  if (user) {
+    console.log('User found:', { id: user._id, email: user.email, role: user.role });
+  } else {
+    console.log('User not found for email:', email);
+  }
 
   if (!user) {
-    console.error('Invalid credentials: User not found');
+    console.error('Invalid credentials: User not found for email:', email);
     return res.status(401).json({ message: 'Invalid credentials' });
   }
 
+  // Check if user is blocked
+  if (user.blocked) {
+    console.error('Login attempt blocked for user:', email);
+    return res.status(403).json({ message: 'Account is blocked' });
+  }
+
+  // Compare password
   const ok = await bcrypt.compare(password, user.password);
 
   // Debugging: Log password comparison result
   console.log('Password comparison result:', ok);
 
   if (!ok) {
-    console.error('Invalid credentials: Password mismatch');
+    console.error('Invalid credentials: Password mismatch for email:', email);
     return res.status(401).json({ message: 'Invalid credentials' });
   }
 
