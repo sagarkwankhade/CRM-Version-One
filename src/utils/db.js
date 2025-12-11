@@ -10,9 +10,20 @@ const connectDB = async (options = {}) => {
   const maxAttempts = options.maxAttempts || 5;
   const delayMs = options.delayMs || 5000; // 5 seconds
 
+  // Mask password when logging URI
+  try {
+    const masked = uri.replace(/:[^:@]*@/, ':****@');
+    console.log('Attempting MongoDB connect to:', masked);
+  } catch (e) {
+    // ignore
+  }
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      await mongoose.connect(uri, { /* Mongoose v7 ignores legacy options */ });
+      await mongoose.connect(uri, {
+        serverSelectionTimeoutMS: options.serverSelectionTimeoutMS || 10000,
+        connectTimeoutMS: options.connectTimeoutMS || 10000,
+      });
       console.log('MongoDB connected');
       return true;
     } catch (err) {

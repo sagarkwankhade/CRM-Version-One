@@ -3,6 +3,7 @@ const asyncHandler = require('express-async-handler');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 
 const { auth, permit } = require('../middleware/auth');
 const { body } = require('express-validator');
@@ -14,6 +15,10 @@ router.post('/login', [
   body('password').isLength({ min: 1 })
 ], handleValidation, asyncHandler(async (req, res) => {
   const { email, password } = req.body;
+  // If DB is not connected, return a quick 503 instead of timing out
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ message: 'Database not connected' });
+  }
   const user = await User.findOne({ email });
   if (!user) return res.status(401).json({ message: 'Invalid credentials' });
   const ok = await bcrypt.compare(password, user.password);
