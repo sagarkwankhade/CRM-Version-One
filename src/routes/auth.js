@@ -15,14 +15,36 @@ router.post('/login', [
   body('password').isLength({ min: 1 })
 ], handleValidation, asyncHandler(async (req, res) => {
   const { email, password } = req.body;
+
+  // Debugging: Log received email
+  console.log('Login attempt with email:', email);
+
   // If DB is not connected, return a quick 503 instead of timing out
   if (mongoose.connection.readyState !== 1) {
+    console.error('Database not connected');
     return res.status(503).json({ message: 'Database not connected' });
   }
+
   const user = await User.findOne({ email });
-  if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+
+  // Debugging: Log user lookup result
+  console.log('User lookup result:', user);
+
+  if (!user) {
+    console.error('Invalid credentials: User not found');
+    return res.status(401).json({ message: 'Invalid credentials' });
+  }
+
   const ok = await bcrypt.compare(password, user.password);
-  if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
+
+  // Debugging: Log password comparison result
+  console.log('Password comparison result:', ok);
+
+  if (!ok) {
+    console.error('Invalid credentials: Password mismatch');
+    return res.status(401).json({ message: 'Invalid credentials' });
+  }
+
   const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'change_this_secret', { expiresIn: '7d' });
   res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
 }));
