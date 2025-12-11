@@ -39,7 +39,21 @@ router.get('/vendors/:id', [
   if (!vendor) {
     return res.status(404).json({ message: 'Vendor not found' });
   }
-  res.json(vendor);
+
+  // Map vendor document to the requested response shape
+  const response = {
+    _id: vendor._id,
+    name: vendor.name || null,
+    role: vendor.role || null,
+    username: vendor.username || vendor.profile?.username || null,
+    mobileNumber: vendor.profile?.phone || vendor.profile?.mobile || null,
+    whatsappNumber: vendor.profile?.whatsappNumber || null,
+    email: vendor.email || null,
+    businessName: vendor.profile?.businessName || null,
+    businessCity: vendor.profile?.businessCity || vendor.profile?.city || null,
+  };
+
+  res.json(response);
 }));
 
 router.post('/vendors', [ body('name').isLength({ min: 1 }), body('email').isEmail(), body('password').optional().isLength({ min: 6 }), handleValidation ], asyncHandler(async (req, res) => {

@@ -5,7 +5,8 @@ const mongoose = require('mongoose');
  * Returns true when connected, false otherwise. Does not call process.exit.
  */
 const connectDB = async (options = {}) => {
-  const uri = process.env.MONGO_URI || 'mongodb+srv://sagarwankhade425_db_user:3UF7eiwOtD66K8eY@clustercrm.pjmtb7p.mongodb.net/crm_db?retryWrites=true&w=majority&appName=ClusterCRM';
+  // Prefer MONGO_URI from environment. Default to the requested connection string placeholder.
+  const uri = process.env.MONGO_URI || 'mongodb+srv://<db_username>:<db_password>@crm2.mknmmxj.mongodb.net/?appName=crm2';
   const maxAttempts = options.maxAttempts || 5;
   const delayMs = options.delayMs || 5000; // 5 seconds
 
