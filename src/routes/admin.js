@@ -220,21 +220,151 @@ router.post('/vendors/:id/unblock', asyncHandler(async (req, res) => {
 
 // Admin can manage employees
 router.get('/employees', asyncHandler(async (req, res) => {
-  const list = await User.find({ role: 'employee' });
-  res.json(list);
+  const employees = await User.find({ role: 'employee' })
+    .select('-password')
+    .populate('vendor', 'name email')
+    .populate('createdBy', 'name email');
+  
+  console.log('Employees found:', employees.length);
+  
+  // Format employees response
+  const formattedEmployees = employees.map(employee => {
+    const formatted = {
+      _id: employee._id.toString(),
+      name: employee.name || null,
+      email: employee.email || null,
+      role: employee.role || null,
+      blocked: employee.blocked || false,
+      createdAt: employee.createdAt,
+      updatedAt: employee.updatedAt
+    };
+    
+    // Add vendor info if exists
+    if (employee.vendor && employee.vendor._id) {
+      formatted.vendor = {
+        _id: employee.vendor._id.toString(),
+        name: employee.vendor.name || null,
+        email: employee.vendor.email || null
+      };
+    } else {
+      formatted.vendor = null;
+    }
+    
+    // Add createdBy info if exists
+    if (employee.createdBy && employee.createdBy._id) {
+      formatted.createdBy = {
+        _id: employee.createdBy._id.toString(),
+        name: employee.createdBy.name || null,
+        email: employee.createdBy.email || null
+      };
+    } else {
+      formatted.createdBy = null;
+    }
+    
+    return formatted;
+  });
+  
+  console.log('Total employees found:', employees.length);
+  console.log('Formatted employees count:', formattedEmployees.length);
+  res.json(formattedEmployees);
 }));
 
-router.post('/employees', [ body('name').isLength({ min: 1 }), body('email').isEmail(), body('password').optional().isLength({ min: 6 }), handleValidation ], asyncHandler(async (req, res) => {
-  const { name, email, password, vendor } = req.body;
-  // If admin creating without vendor specified, leave vendor null
-  const hash = await bcrypt.hash(password || 'employee123', 10);
-  const user = await User.create({ name, email, password: hash, role: 'employee', createdBy: req.user._id, vendor: vendor || null });
-  res.status(201).json(user);
+router.post('/employees', [ 
+  body('name').isLength({ min: 1 }), 
+  body('email').isEmail(), 
+  body('password').optional().isLength({ min: 6 }), 
+  handleValidation 
+], asyncHandler(async (req, res) => {
+  try {
+    const { name, email, password, vendor } = req.body;
+    
+    // Check if email already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
+    
+    // If admin creating without vendor specified, leave vendor null
+    const hash = await bcrypt.hash(password || 'employee123', 10);
+    const user = await User.create({ 
+      name, 
+      email, 
+      password: hash, 
+      role: 'employee', 
+      createdBy: req.user._id, 
+      vendor: vendor || null 
+    });
+    
+    // Fetch the created user with populated fields
+    const createdEmployee = await User.findById(user._id)
+      .select('-password')
+      .populate('vendor', 'name email')
+      .populate('createdBy', 'name email');
+    
+    // Return formatted response without password
+    const response = {
+      _id: createdEmployee._id.toString(),
+      name: createdEmployee.name || null,
+      email: createdEmployee.email || null,
+      role: createdEmployee.role || null,
+      blocked: createdEmployee.blocked || false,
+      vendor: createdEmployee.vendor && createdEmployee.vendor._id ? {
+        _id: createdEmployee.vendor._id.toString(),
+        name: createdEmployee.vendor.name || null,
+        email: createdEmployee.vendor.email || null
+      } : null,
+      createdBy: createdEmployee.createdBy && createdEmployee.createdBy._id ? {
+        _id: createdEmployee.createdBy._id.toString(),
+        name: createdEmployee.createdBy.name || null,
+        email: createdEmployee.createdBy.email || null
+      } : null,
+      createdAt: createdEmployee.createdAt,
+      updatedAt: createdEmployee.updatedAt
+    };
+    
+    console.log('Employee created successfully:', response);
+    res.status(201).json(response);
+  } catch (error) {
+    console.error('Error creating employee:', error);
+    res.status(500).json({ message: 'Error creating employee', error: error.message });
+  }
 }));
 
 router.put('/employees/:id', asyncHandler(async (req, res) => {
-  await User.findByIdAndUpdate(req.params.id, req.body);
-  res.json({ ok: true });
+  const { password, ...updateData } = req.body;
+  
+  // Don't allow password updates through this endpoint
+  const updatedEmployee = await User.findByIdAndUpdate(req.params.id, updateData, { new: true })
+    .select('-password')
+    .populate('vendor', 'name email')
+    .populate('createdBy', 'name email');
+  
+  if (!updatedEmployee) {
+    return res.status(404).json({ message: 'Employee not found' });
+  }
+  
+  // Return formatted response
+  const response = {
+    _id: updatedEmployee._id,
+    name: updatedEmployee.name,
+    email: updatedEmployee.email,
+    role: updatedEmployee.role,
+    blocked: updatedEmployee.blocked || false,
+    vendor: updatedEmployee.vendor ? {
+      _id: updatedEmployee.vendor._id,
+      name: updatedEmployee.vendor.name,
+      email: updatedEmployee.vendor.email
+    } : null,
+    createdBy: updatedEmployee.createdBy ? {
+      _id: updatedEmployee.createdBy._id,
+      name: updatedEmployee.createdBy.name,
+      email: updatedEmployee.createdBy.email
+    } : null,
+    createdAt: updatedEmployee.createdAt,
+    updatedAt: updatedEmployee.updatedAt
+  };
+  
+  res.json({ ok: true, employee: response });
 }));
 
 router.delete('/employees/:id', [ param('id').isMongoId(), handleValidation ], asyncHandler(async (req, res) => {

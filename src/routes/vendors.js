@@ -101,7 +101,20 @@ router.post('/:vendorId/employees', [
     vendor: vendorId
   });
 
-  res.status(201).json(user);
+  // Return formatted response without password
+  const response = {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    blocked: user.blocked || false,
+    vendor: user.vendor || null,
+    createdBy: user.createdBy || null,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  };
+
+  res.status(201).json(response);
 }));
 
 // ===============================
