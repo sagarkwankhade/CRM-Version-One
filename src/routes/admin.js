@@ -29,21 +29,36 @@ router.get('/vendors', asyncHandler(async (req, res) => {
   const vendors = await User.find({ role: 'vendor' }).select('-password');
   
   // Map vendors to include all fields properly
-  const formattedVendors = vendors.map(vendor => ({
-    _id: vendor._id,
-    name: vendor.name || null,
-    username: vendor.username || vendor.profile?.username || null,
-    email: vendor.email || null,
-    mobileNumber: vendor.mobileNumber || vendor.profile?.phone || vendor.profile?.mobile || vendor.profile?.mobileNumber || null,
-    whatsappNumber: vendor.whatsappNumber || vendor.profile?.whatsappNumber || null,
-    businessName: vendor.businessName || vendor.profile?.businessName || null,
-    businessAddress: vendor.businessAddress || vendor.profile?.address || vendor.profile?.businessAddress || null,
-    businessCity: vendor.businessCity || vendor.profile?.businessCity || vendor.profile?.city || null,
-    role: vendor.role || null,
-    blocked: vendor.blocked || false,
-    createdAt: vendor.createdAt,
-    updatedAt: vendor.updatedAt
-  }));
+  // Check both top-level fields and profile object for backward compatibility
+  const formattedVendors = vendors.map(vendor => {
+    // Helper to safely get nested profile values
+    const getProfileValue = (key, altKeys = []) => {
+      if (vendor[key]) return vendor[key];
+      if (vendor.profile && typeof vendor.profile === 'object') {
+        if (vendor.profile[key]) return vendor.profile[key];
+        for (const altKey of altKeys) {
+          if (vendor.profile[altKey]) return vendor.profile[altKey];
+        }
+      }
+      return null;
+    };
+    
+    return {
+      _id: vendor._id,
+      name: vendor.name || null,
+      username: getProfileValue('username'),
+      email: vendor.email || null,
+      mobileNumber: getProfileValue('mobileNumber', ['phone', 'mobile']),
+      whatsappNumber: getProfileValue('whatsappNumber'),
+      businessName: getProfileValue('businessName'),
+      businessAddress: getProfileValue('businessAddress', ['address']),
+      businessCity: getProfileValue('businessCity', ['city']),
+      role: vendor.role || null,
+      blocked: vendor.blocked || false,
+      createdAt: vendor.createdAt,
+      updatedAt: vendor.updatedAt
+    };
+  });
   
   res.json(formattedVendors);
 }));
@@ -58,17 +73,29 @@ router.get('/vendors/:id', [
     return res.status(404).json({ message: 'Vendor not found' });
   }
 
+  // Helper to safely get nested profile values
+  const getProfileValue = (key, altKeys = []) => {
+    if (vendor[key]) return vendor[key];
+    if (vendor.profile && typeof vendor.profile === 'object') {
+      if (vendor.profile[key]) return vendor.profile[key];
+      for (const altKey of altKeys) {
+        if (vendor.profile[altKey]) return vendor.profile[altKey];
+      }
+    }
+    return null;
+  };
+
   // Map vendor document to include all fields from both vendor object and profile
   const response = {
     _id: vendor._id,
     name: vendor.name || null,
-    username: vendor.username || vendor.profile?.username || null,
+    username: getProfileValue('username'),
     email: vendor.email || null,
-    mobileNumber: vendor.mobileNumber || vendor.profile?.phone || vendor.profile?.mobile || vendor.profile?.mobileNumber || null,
-    whatsappNumber: vendor.whatsappNumber || vendor.profile?.whatsappNumber || null,
-    businessName: vendor.businessName || vendor.profile?.businessName || null,
-    businessAddress: vendor.businessAddress || vendor.profile?.address || vendor.profile?.businessAddress || null,
-    businessCity: vendor.businessCity || vendor.profile?.businessCity || vendor.profile?.city || null,
+    mobileNumber: getProfileValue('mobileNumber', ['phone', 'mobile']),
+    whatsappNumber: getProfileValue('whatsappNumber'),
+    businessName: getProfileValue('businessName'),
+    businessAddress: getProfileValue('businessAddress', ['address']),
+    businessCity: getProfileValue('businessCity', ['city']),
     role: vendor.role || null,
     blocked: vendor.blocked || false,
     createdAt: vendor.createdAt,

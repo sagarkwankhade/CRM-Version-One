@@ -6,6 +6,13 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { type: String, enum: ['admin','vendor','employee','lead'], required: true },
   blocked: { type: Boolean, default: false },
+  // Vendor/User profile fields
+  username: { type: String, default: null },
+  mobileNumber: { type: String, default: null },
+  whatsappNumber: { type: String, default: null },
+  businessName: { type: String, default: null },
+  businessAddress: { type: String, default: null },
+  businessCity: { type: String, default: null },
   profile: { type: mongoose.Schema.Types.Mixed },
   // who created this user (admin or vendor)
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
