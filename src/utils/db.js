@@ -10,8 +10,8 @@ mongoose.set('debug', true);
  * Returns true when connected, false otherwise. Does not call process.exit.
  */
 const connect = async (options = {}) => {
-  // Prefer MONGO_URI from environment. Default to local MongoDB if not set.
-  const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/crm_db';
+  // Prefer MONGO_URI from environment. Default to MongoDB Atlas if not set.
+  const uri = process.env.MONGO_URI || 'mongodb+srv://sagarwankhade425_db_user:VEwqfP8kKL060xME@crm12.yaa8wom.mongodb.net/?appName=crm12';
   const maxAttempts = options.maxAttempts || 5;
   const delayMs = options.delayMs || 5000; // 5 seconds
 
