@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: crm-backend-api
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        value: admin@example.com
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+    healthCheckPath: /health
+

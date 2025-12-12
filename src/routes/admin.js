@@ -26,8 +26,26 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
 
 // Admin can manage vendors
 router.get('/vendors', asyncHandler(async (req, res) => {
-  const list = await User.find({ role: 'vendor' });
-  res.json(list);
+  const vendors = await User.find({ role: 'vendor' }).select('-password');
+  
+  // Map vendors to include all fields properly
+  const formattedVendors = vendors.map(vendor => ({
+    _id: vendor._id,
+    name: vendor.name || null,
+    username: vendor.username || vendor.profile?.username || null,
+    email: vendor.email || null,
+    mobileNumber: vendor.mobileNumber || vendor.profile?.phone || vendor.profile?.mobile || vendor.profile?.mobileNumber || null,
+    whatsappNumber: vendor.whatsappNumber || vendor.profile?.whatsappNumber || null,
+    businessName: vendor.businessName || vendor.profile?.businessName || null,
+    businessAddress: vendor.businessAddress || vendor.profile?.address || vendor.profile?.businessAddress || null,
+    businessCity: vendor.businessCity || vendor.profile?.businessCity || vendor.profile?.city || null,
+    role: vendor.role || null,
+    blocked: vendor.blocked || false,
+    createdAt: vendor.createdAt,
+    updatedAt: vendor.updatedAt
+  }));
+  
+  res.json(formattedVendors);
 }));
 
 // Get vendor by ID
@@ -40,34 +58,119 @@ router.get('/vendors/:id', [
     return res.status(404).json({ message: 'Vendor not found' });
   }
 
-  // Map vendor document to the requested response shape
+  // Map vendor document to include all fields from both vendor object and profile
   const response = {
     _id: vendor._id,
     name: vendor.name || null,
-    role: vendor.role || null,
     username: vendor.username || vendor.profile?.username || null,
-    mobileNumber: vendor.profile?.phone || vendor.profile?.mobile || null,
-    whatsappNumber: vendor.profile?.whatsappNumber || null,
     email: vendor.email || null,
-    businessName: vendor.profile?.businessName || null,
-    businessCity: vendor.profile?.businessCity || vendor.profile?.city || null,
+    mobileNumber: vendor.mobileNumber || vendor.profile?.phone || vendor.profile?.mobile || vendor.profile?.mobileNumber || null,
+    whatsappNumber: vendor.whatsappNumber || vendor.profile?.whatsappNumber || null,
+    businessName: vendor.businessName || vendor.profile?.businessName || null,
+    businessAddress: vendor.businessAddress || vendor.profile?.address || vendor.profile?.businessAddress || null,
+    businessCity: vendor.businessCity || vendor.profile?.businessCity || vendor.profile?.city || null,
+    role: vendor.role || null,
+    blocked: vendor.blocked || false,
+    createdAt: vendor.createdAt,
+    updatedAt: vendor.updatedAt
   };
 
   res.json(response);
 }));
 
-router.post('/vendors', [ body('name').isLength({ min: 1 }), body('email').isEmail(), body('password').optional().isLength({ min: 6 }), handleValidation ], asyncHandler(async (req, res) => {
-  const { name, email, password } = req.body;
+router.post('/vendors', [ 
+  body('name').isLength({ min: 1 }), 
+  body('email').isEmail(), 
+  body('password').optional().isLength({ min: 6 }),
+  body('username').optional().isLength({ min: 3 }),
+  body('mobileNumber').optional().matches(/^[0-9]{10}$/),
+  body('whatsappNumber').optional().matches(/^[0-9]{10}$/),
+  body('businessName').optional().isLength({ min: 2 }),
+  body('businessAddress').optional().isLength({ min: 5 }),
+  body('businessCity').optional().isLength({ min: 2 }),
+  handleValidation 
+], asyncHandler(async (req, res) => {
+  const { 
+    name, 
+    email, 
+    password, 
+    username, 
+    mobileNumber, 
+    whatsappNumber, 
+    businessName, 
+    businessAddress, 
+    businessCity 
+  } = req.body;
+  
   const hash = await bcrypt.hash(password || 'vendor123', 10);
-  const user = await User.create({ name, email, password: hash, role: 'vendor', createdBy: req.user._id });
-  res.status(201).json(user);
+  
+  const userData = {
+    name,
+    email,
+    password: hash,
+    role: 'vendor',
+    createdBy: req.user._id
+  };
+  
+  // Add optional fields if provided
+  if (username) userData.username = username;
+  if (mobileNumber) userData.mobileNumber = mobileNumber;
+  if (whatsappNumber) userData.whatsappNumber = whatsappNumber;
+  if (businessName) userData.businessName = businessName;
+  if (businessAddress) userData.businessAddress = businessAddress;
+  if (businessCity) userData.businessCity = businessCity;
+  
+  const user = await User.create(userData);
+  
+  // Return formatted response without password
+  const response = {
+    _id: user._id,
+    name: user.name,
+    username: user.username || null,
+    email: user.email,
+    mobileNumber: user.mobileNumber || null,
+    whatsappNumber: user.whatsappNumber || null,
+    businessName: user.businessName || null,
+    businessAddress: user.businessAddress || null,
+    businessCity: user.businessCity || null,
+    role: user.role,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  };
+  
+  res.status(201).json(response);
 }));
 
 router.put('/vendors/:id', asyncHandler(async (req, res) => {
   const id = req.params.id;
-  const data = req.body;
-  await User.findByIdAndUpdate(id, data);
-  res.json({ ok: true });
+  const { password, ...updateData } = req.body;
+  
+  // Don't allow password updates through this endpoint (use separate endpoint if needed)
+  // Update the vendor
+  const updatedVendor = await User.findByIdAndUpdate(id, updateData, { new: true }).select('-password');
+  
+  if (!updatedVendor) {
+    return res.status(404).json({ message: 'Vendor not found' });
+  }
+  
+  // Return formatted response with all fields
+  const response = {
+    _id: updatedVendor._id,
+    name: updatedVendor.name,
+    username: updatedVendor.username || null,
+    email: updatedVendor.email,
+    mobileNumber: updatedVendor.mobileNumber || null,
+    whatsappNumber: updatedVendor.whatsappNumber || null,
+    businessName: updatedVendor.businessName || null,
+    businessAddress: updatedVendor.businessAddress || null,
+    businessCity: updatedVendor.businessCity || null,
+    role: updatedVendor.role,
+    blocked: updatedVendor.blocked || false,
+    createdAt: updatedVendor.createdAt,
+    updatedAt: updatedVendor.updatedAt
+  };
+  
+  res.json({ ok: true, vendor: response });
 }));
 
 router.delete('/vendors/:id', [ param('id').isMongoId(), handleValidation ], asyncHandler(async (req, res) => {

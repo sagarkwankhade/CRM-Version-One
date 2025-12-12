@@ -24,6 +24,7 @@ router.put('/:vendorId/edit-info', [
   body('whatsappNumber').optional().matches(/^[0-9]{10}$/).withMessage('Invalid WhatsApp number'),
   body('email').optional().isEmail().withMessage('Invalid email'),
   body('businessName').optional().isLength({ min: 2 }).withMessage('Business name must be at least 2 characters'),
+  body('businessAddress').optional().isLength({ min: 5 }).withMessage('Business address must be at least 5 characters'),
   body('businessCity').optional().isLength({ min: 2 }).withMessage('Business city must be at least 2 characters'),
   body('block').optional().isBoolean().withMessage('Block must be true or false'),
   handleValidation
@@ -48,6 +49,7 @@ router.put('/:vendorId/edit-info', [
     whatsappNumber,
     email,
     businessName,
+    businessAddress,
     businessCity,
     block
   } = req.body;
@@ -60,6 +62,7 @@ router.put('/:vendorId/edit-info', [
   if (whatsappNumber) updateData.whatsappNumber = whatsappNumber;
   if (email) updateData.email = email;
   if (businessName) updateData.businessName = businessName;
+  if (businessAddress) updateData.businessAddress = businessAddress;
   if (businessCity) updateData.businessCity = businessCity;
   if (block !== undefined) updateData.blocked = block;
 

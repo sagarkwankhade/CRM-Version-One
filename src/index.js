@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
+const mongoose = require('mongoose');
 const { connect } = require('./utils/db');
 
 const authRoutes = require('./routes/auth');
@@ -16,6 +17,24 @@ const app = express();
 app.use(express.json());
 app.use(morgan('dev'));
 app.use(cors());
+
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'CRM Backend API is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/health', (req, res) => {
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  res.json({ 
+    status: 'ok', 
+    database: dbStatus,
+    timestamp: new Date().toISOString()
+  });
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
