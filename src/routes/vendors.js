@@ -82,9 +82,13 @@ router.post('/:vendorId/employees', [
   body('name').isLength({ min: 1 }),
   body('email').isEmail(),
   body('password').optional().isLength({ min: 6 }),
+  body('username').optional().isLength({ min: 3 }),
+  body('mobileNumber').optional().matches(/^[0-9]{10}$/),
+  body('aadharNumber').optional().matches(/^[0-9]{12}$/),
+  body('city').optional().isLength({ min: 2 }),
   handleValidation
 ], asyncHandler(async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, username, mobileNumber, aadharNumber, city } = req.body;
   const vendorId = req.params.vendorId;
 
   if (req.user.role === 'vendor' && req.user._id.toString() !== vendorId) {
@@ -92,21 +96,36 @@ router.post('/:vendorId/employees', [
   }
 
   const hash = await bcrypt.hash(password || 'employee123', 10);
-  const user = await User.create({
+  const userData = {
     name,
     email,
     password: hash,
     role: 'employee',
     createdBy: req.user._id,
     vendor: vendorId
-  });
+  };
+
+  // Add optional fields if provided
+  if (username) userData.username = username;
+  if (mobileNumber) userData.mobileNumber = mobileNumber;
+  if (aadharNumber) userData.aadharNumber = aadharNumber;
+  if (city) userData.city = city;
+
+  const user = await User.create(userData);
+
+  // Helper to get field value
+  const getFieldValue = (emp, key) => emp[key] || null;
 
   // Return formatted response without password
   const response = {
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
+    _id: user._id.toString(),
+    name: user.name || null,
+    username: getFieldValue(user, 'username'),
+    email: user.email || null,
+    mobileNumber: getFieldValue(user, 'mobileNumber'),
+    aadharNumber: getFieldValue(user, 'aadharNumber'),
+    city: getFieldValue(user, 'city'),
+    role: user.role || null,
     blocked: user.blocked || false,
     vendor: user.vendor || null,
     createdBy: user.createdBy || null,

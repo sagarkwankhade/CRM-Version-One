@@ -227,12 +227,28 @@ router.get('/employees', asyncHandler(async (req, res) => {
   
   console.log('Employees found:', employees.length);
   
+  // Helper to safely get field values from employee or profile
+  const getFieldValue = (employee, key, altKeys = []) => {
+    if (employee[key]) return employee[key];
+    if (employee.profile && typeof employee.profile === 'object') {
+      if (employee.profile[key]) return employee.profile[key];
+      for (const altKey of altKeys) {
+        if (employee.profile[altKey]) return employee.profile[altKey];
+      }
+    }
+    return null;
+  };
+
   // Format employees response
   const formattedEmployees = employees.map(employee => {
     const formatted = {
       _id: employee._id.toString(),
       name: employee.name || null,
+      username: getFieldValue(employee, 'username'),
       email: employee.email || null,
+      mobileNumber: getFieldValue(employee, 'mobileNumber', ['phone', 'mobile']),
+      aadharNumber: getFieldValue(employee, 'aadharNumber', ['aadhar', 'aadhaar']),
+      city: getFieldValue(employee, 'city', ['employeeCity', 'location']),
       role: employee.role || null,
       blocked: employee.blocked || false,
       createdAt: employee.createdAt,
@@ -272,11 +288,15 @@ router.get('/employees', asyncHandler(async (req, res) => {
 router.post('/employees', [ 
   body('name').isLength({ min: 1 }), 
   body('email').isEmail(), 
-  body('password').optional().isLength({ min: 6 }), 
+  body('password').optional().isLength({ min: 6 }),
+  body('username').optional().isLength({ min: 3 }),
+  body('mobileNumber').optional().matches(/^[0-9]{10}$/),
+  body('aadharNumber').optional().matches(/^[0-9]{12}$/),
+  body('city').optional().isLength({ min: 2 }),
   handleValidation 
 ], asyncHandler(async (req, res) => {
   try {
-    const { name, email, password, vendor } = req.body;
+    const { name, email, password, vendor, username, mobileNumber, aadharNumber, city } = req.body;
     
     // Check if email already exists
     const existingUser = await User.findOne({ email });
@@ -286,14 +306,22 @@ router.post('/employees', [
     
     // If admin creating without vendor specified, leave vendor null
     const hash = await bcrypt.hash(password || 'employee123', 10);
-    const user = await User.create({ 
+    const userData = {
       name, 
       email, 
       password: hash, 
       role: 'employee', 
       createdBy: req.user._id, 
-      vendor: vendor || null 
-    });
+      vendor: vendor || null
+    };
+    
+    // Add optional fields if provided
+    if (username) userData.username = username;
+    if (mobileNumber) userData.mobileNumber = mobileNumber;
+    if (aadharNumber) userData.aadharNumber = aadharNumber;
+    if (city) userData.city = city;
+    
+    const user = await User.create(userData);
     
     // Fetch the created user with populated fields
     const createdEmployee = await User.findById(user._id)
@@ -301,11 +329,18 @@ router.post('/employees', [
       .populate('vendor', 'name email')
       .populate('createdBy', 'name email');
     
+    // Helper to get field value
+    const getFieldValue = (emp, key) => emp[key] || null;
+    
     // Return formatted response without password
     const response = {
       _id: createdEmployee._id.toString(),
       name: createdEmployee.name || null,
+      username: getFieldValue(createdEmployee, 'username'),
       email: createdEmployee.email || null,
+      mobileNumber: getFieldValue(createdEmployee, 'mobileNumber'),
+      aadharNumber: getFieldValue(createdEmployee, 'aadharNumber'),
+      city: getFieldValue(createdEmployee, 'city'),
       role: createdEmployee.role || null,
       blocked: createdEmployee.blocked || false,
       vendor: createdEmployee.vendor && createdEmployee.vendor._id ? {
@@ -330,41 +365,86 @@ router.post('/employees', [
   }
 }));
 
-router.put('/employees/:id', asyncHandler(async (req, res) => {
-  const { password, ...updateData } = req.body;
-  
-  // Don't allow password updates through this endpoint
-  const updatedEmployee = await User.findByIdAndUpdate(req.params.id, updateData, { new: true })
+router.put('/employees/:id', [
+  param('id').isMongoId().withMessage('Invalid employee ID'),
+  body('name').optional().isLength({ min: 2 }).withMessage('Name must be at least 2 characters long'),
+  body('email').optional().isEmail().withMessage('Must be a valid email'),
+  body('username').optional().isLength({ min: 3 }).withMessage('Username must be at least 3 characters long'),
+  body('mobileNumber').optional().matches(/^[0-9]{10}$/).withMessage('Mobile number must be 10 digits'),
+  body('aadharNumber').optional().isLength({ min: 12, max: 12 }).withMessage('Aadhar number must be 12 digits'),
+  body('city').optional().isLength({ min: 2 }).withMessage('City must be at least 2 characters long'),
+  body('blocked').optional().isBoolean().withMessage('Blocked must be a boolean'),
+  handleValidation
+], asyncHandler(async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password, role, createdBy, ...updateData } = req.body;
+    
+    // Prevent changing role or createdBy through this endpoint
+    if (role || createdBy) {
+      return res.status(400).json({ 
+        message: 'Cannot update role or createdBy through this endpoint' 
+      });
+    }
+    
+    // Check if email already exists for another user
+    if (updateData.email) {
+      const existingUser = await User.findOne({ 
+        email: updateData.email, 
+        _id: { $ne: id } 
+      });
+      
+      if (existingUser) {
+        return res.status(400).json({ message: 'Email already in use by another user' });
+      }
+    }
+    
+    const updatedEmployee = await User.findByIdAndUpdate(
+      id, 
+      updateData, 
+      { new: true, runValidators: true }
+    )
     .select('-password')
     .populate('vendor', 'name email')
     .populate('createdBy', 'name email');
-  
-  if (!updatedEmployee) {
-    return res.status(404).json({ message: 'Employee not found' });
+    
+    if (!updatedEmployee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+    
+    // Helper to get field value
+    const getFieldValue = (emp, key) => emp[key] || null;
+    
+    // Return formatted response
+    const response = {
+      _id: updatedEmployee._id.toString(),
+      name: updatedEmployee.name || null,
+      username: getFieldValue(updatedEmployee, 'username'),
+      email: updatedEmployee.email || null,
+      mobileNumber: getFieldValue(updatedEmployee, 'mobileNumber'),
+      aadharNumber: getFieldValue(updatedEmployee, 'aadharNumber'),
+      city: getFieldValue(updatedEmployee, 'city'),
+      role: updatedEmployee.role || null,
+      blocked: updatedEmployee.blocked || false,
+      vendor: updatedEmployee.vendor && updatedEmployee.vendor._id ? {
+        _id: updatedEmployee.vendor._id.toString(),
+        name: updatedEmployee.vendor.name || null,
+        email: updatedEmployee.vendor.email || null
+      } : null,
+      createdBy: updatedEmployee.createdBy && updatedEmployee.createdBy._id ? {
+        _id: updatedEmployee.createdBy._id.toString(),
+        name: updatedEmployee.createdBy.name || null,
+        email: updatedEmployee.createdBy.email || null
+      } : null,
+      createdAt: updatedEmployee.createdAt,
+      updatedAt: updatedEmployee.updatedAt
+    };
+    
+    res.json({ ok: true, employee: response });
+  } catch (error) {
+    console.error('Error updating employee:', error);
+    res.status(500).json({ message: 'Error updating employee', error: error.message });
   }
-  
-  // Return formatted response
-  const response = {
-    _id: updatedEmployee._id,
-    name: updatedEmployee.name,
-    email: updatedEmployee.email,
-    role: updatedEmployee.role,
-    blocked: updatedEmployee.blocked || false,
-    vendor: updatedEmployee.vendor ? {
-      _id: updatedEmployee.vendor._id,
-      name: updatedEmployee.vendor.name,
-      email: updatedEmployee.vendor.email
-    } : null,
-    createdBy: updatedEmployee.createdBy ? {
-      _id: updatedEmployee.createdBy._id,
-      name: updatedEmployee.createdBy.name,
-      email: updatedEmployee.createdBy.email
-    } : null,
-    createdAt: updatedEmployee.createdAt,
-    updatedAt: updatedEmployee.updatedAt
-  };
-  
-  res.json({ ok: true, employee: response });
 }));
 
 router.delete('/employees/:id', [ param('id').isMongoId(), handleValidation ], asyncHandler(async (req, res) => {

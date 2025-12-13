@@ -13,6 +13,9 @@ const userSchema = new mongoose.Schema({
   businessName: { type: String, default: null },
   businessAddress: { type: String, default: null },
   businessCity: { type: String, default: null },
+  // Employee specific fields
+  aadharNumber: { type: String, default: null },
+  city: { type: String, default: null },
   profile: { type: mongoose.Schema.Types.Mixed },
   // who created this user (admin or vendor)
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
