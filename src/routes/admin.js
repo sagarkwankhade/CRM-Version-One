@@ -225,78 +225,56 @@ router.get('/employees', asyncHandler(async (req, res) => {
     .populate('vendor', 'name email')
     .populate('createdBy', 'name email');
   
-  console.log('Employees found:', employees.length);
+  // Format employees response with consistent field mapping
+  const formattedEmployees = employees.map(employee => ({
+    _id: employee._id.toString(),
+    name: employee.name || 'N/A',
+    username: employee.username || 'N/A',
+    email: employee.email || 'N/A',
+    mobileNumber: employee.mobileNumber || 'N/A',
+    aadharNumber: employee.aadharNumber || 'N/A',
+    city: employee.city || 'N/A',
+    role: employee.role || 'employee',
+    blocked: employee.blocked || false,
+    vendor: employee.vendor?._id ? {
+      _id: employee.vendor._id.toString(),
+      name: employee.vendor.name || 'N/A',
+      email: employee.vendor.email || 'N/A'
+    } : null,
+    createdBy: employee.createdBy?._id ? {
+      _id: employee.createdBy._id.toString(),
+      name: employee.createdBy.name || 'N/A',
+      email: employee.createdBy.email || 'N/A'
+    } : null,
+    createdAt: employee.createdAt,
+    updatedAt: employee.updatedAt
+  }));
   
-  // Helper to safely get field values from employee or profile
-  const getFieldValue = (employee, key, altKeys = []) => {
-    if (employee[key]) return employee[key];
-    if (employee.profile && typeof employee.profile === 'object') {
-      if (employee.profile[key]) return employee.profile[key];
-      for (const altKey of altKeys) {
-        if (employee.profile[altKey]) return employee.profile[altKey];
-      }
-    }
-    return null;
-  };
-
-  // Format employees response
-  const formattedEmployees = employees.map(employee => {
-    const formatted = {
-      _id: employee._id.toString(),
-      name: employee.name || null,
-      username: getFieldValue(employee, 'username'),
-      email: employee.email || null,
-      mobileNumber: getFieldValue(employee, 'mobileNumber', ['phone', 'mobile']),
-      aadharNumber: getFieldValue(employee, 'aadharNumber', ['aadhar', 'aadhaar']),
-      city: getFieldValue(employee, 'city', ['employeeCity', 'location']),
-      role: employee.role || null,
-      blocked: employee.blocked || false,
-      createdAt: employee.createdAt,
-      updatedAt: employee.updatedAt
-    };
-    
-    // Add vendor info if exists
-    if (employee.vendor && employee.vendor._id) {
-      formatted.vendor = {
-        _id: employee.vendor._id.toString(),
-        name: employee.vendor.name || null,
-        email: employee.vendor.email || null
-      };
-    } else {
-      formatted.vendor = null;
-    }
-    
-    // Add createdBy info if exists
-    if (employee.createdBy && employee.createdBy._id) {
-      formatted.createdBy = {
-        _id: employee.createdBy._id.toString(),
-        name: employee.createdBy.name || null,
-        email: employee.createdBy.email || null
-      };
-    } else {
-      formatted.createdBy = null;
-    }
-    
-    return formatted;
-  });
-  
-  console.log('Total employees found:', employees.length);
-  console.log('Formatted employees count:', formattedEmployees.length);
   res.json(formattedEmployees);
 }));
 
 router.post('/employees', [ 
-  body('name').isLength({ min: 1 }), 
-  body('email').isEmail(), 
-  body('password').optional().isLength({ min: 6 }),
-  body('username').optional().isLength({ min: 3 }),
-  body('mobileNumber').optional().matches(/^[0-9]{10}$/),
-  body('aadharNumber').optional().matches(/^[0-9]{12}$/),
-  body('city').optional().isLength({ min: 2 }),
+  body('name').isLength({ min: 1 }).withMessage('Name is required'), 
+  body('email').isEmail().withMessage('Valid email is required'), 
+  body('password').optional().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('username').optional().isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
+  body('mobileNumber').optional().matches(/^[0-9]{10}$/).withMessage('Mobile number must be 10 digits'),
+  body('aadharNumber').optional().matches(/^[0-9]{12}$/).withMessage('Aadhar number must be 12 digits'),
+  body('city').optional().isLength({ min: 2 }).withMessage('City must be at least 2 characters'),
   handleValidation 
 ], asyncHandler(async (req, res) => {
   try {
-    const { name, email, password, vendor, username, mobileNumber, aadharNumber, city } = req.body;
+    const { 
+      name, 
+      email, 
+      password = 'defaultPassword123', // Default password if not provided
+      vendor, 
+      username, 
+      mobileNumber, 
+      aadharNumber, 
+      city,
+      ...otherFields
+    } = req.body;
     
     // Check if email already exists
     const existingUser = await User.findOne({ email });
@@ -368,7 +346,7 @@ router.post('/employees', [
 router.put('/employees/:id', [
   param('id').isMongoId().withMessage('Invalid employee ID'),
   body('name').optional().isLength({ min: 2 }).withMessage('Name must be at least 2 characters long'),
-  body('email').optional().isEmail().withMessage('Must be a valid email'),
+  body('email').optional().isEmail().withMessage('Must provide a valid email'),
   body('username').optional().isLength({ min: 3 }).withMessage('Username must be at least 3 characters long'),
   body('mobileNumber').optional().matches(/^[0-9]{10}$/).withMessage('Mobile number must be 10 digits'),
   body('aadharNumber').optional().isLength({ min: 12, max: 12 }).withMessage('Aadhar number must be 12 digits'),
@@ -379,6 +357,13 @@ router.put('/employees/:id', [
   try {
     const { id } = req.params;
     const { password, role, createdBy, ...updateData } = req.body;
+
+    // Remove empty strings and null values to prevent overriding with null
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === '' || updateData[key] === null) {
+        delete updateData[key];
+      }
+    });
     
     // Prevent changing role or createdBy through this endpoint
     if (role || createdBy) {
